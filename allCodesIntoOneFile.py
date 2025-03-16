@@ -3,10 +3,10 @@ from tkinter import filedialog, ttk, messagebox
 import os
 from datetime import datetime
 
-class TSXScanner:
+class CodeScanner:
     def __init__(self, root):
         self.root = root
-        self.root.title("TSX File Scanner")
+        self.root.title("TS/JS File Scanner")
         self.root.geometry("700x500")
         
         # Style configuration
@@ -27,7 +27,7 @@ class TSXScanner:
         
     def create_widgets(self):
         # Source folder selection
-        self.source_frame = ttk.LabelFrame(self.main_frame, text="Source Directory (TSX Files)", padding="5")
+        self.source_frame = ttk.LabelFrame(self.main_frame, text="Source Directory (TS/JS Files)", padding="5")
         self.source_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
         
         self.source_path = tk.StringVar()
@@ -52,7 +52,7 @@ class TSXScanner:
         self.output_frame = ttk.LabelFrame(self.main_frame, text="Output File Settings", padding="5")
         self.output_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
         
-        self.output_name = tk.StringVar(value="tsx_files_index.txt")
+        self.output_name = tk.StringVar(value="codebase_export.txt")
         self.output_entry = ttk.Entry(self.output_frame, textvariable=self.output_name, width=60)
         self.output_entry.grid(row=0, column=0, columnspan=2, padx=5)
         
@@ -69,11 +69,11 @@ class TSXScanner:
         self.status_text['yscrollcommand'] = self.scrollbar.set
         
         # Scan button
-        self.scan_button = ttk.Button(self.main_frame, text="Scan TSX Files", command=self.scan_files)
+        self.scan_button = ttk.Button(self.main_frame, text="Scan Code Files", command=self.scan_files)
         self.scan_button.grid(row=4, column=0, columnspan=2, pady=10)
         
     def browse_source(self):
-        folder_selected = filedialog.askdirectory(title="Select Source Directory (TSX Files)")
+        folder_selected = filedialog.askdirectory(title="Select Source Directory (TS/JS Files)")
         if folder_selected:
             self.source_path.set(folder_selected)
             
@@ -84,7 +84,7 @@ class TSXScanner:
     
     def should_skip_directory(self, dir_path):
         # List of directories to exclude
-        excluded_dirs = {'node_modules'}
+        excluded_dirs = {'node_modules', 'dist', '.git'}
         return os.path.basename(dir_path) in excluded_dirs
             
     def scan_files(self):
@@ -98,56 +98,63 @@ class TSXScanner:
             
         try:
             self.status_text.delete(1.0, tk.END)
-            self.status_text.insert(tk.END, "Scanning for TSX files (excluding node_modules)...\n")
+            self.status_text.insert(tk.END, "Scanning for TS and JS files (excluding node_modules, dist, .git)...\n")
             self.root.update()
             
             # Create output file in target directory
             output_path = os.path.join(target_folder, output_file)
-            tsx_files = []
+            code_files = []
             
             # Walk through directory
             for folder_path, dirs, files in os.walk(source_folder):
-                # Skip node_modules directories
+                # Skip excluded directories
                 dirs[:] = [d for d in dirs if not self.should_skip_directory(os.path.join(folder_path, d))]
                 
                 for file in files:
-                    if file.endswith('.tsx'):
+                    if file.endswith(('.ts', '.js')) and not file.endswith(('.d.ts', '.spec.ts', '.test.ts', '.spec.js', '.test.js')):
                         file_path = os.path.join(folder_path, file)
                         relative_path = os.path.relpath(file_path, source_folder)
-                        tsx_files.append((relative_path, file_path))
+                        code_files.append((relative_path, file_path))
                         self.status_text.insert(tk.END, f"Found: {relative_path}\n")
+                        self.status_text.see(tk.END)
                         self.root.update()
             
-            if not tsx_files:
-                self.status_text.insert(tk.END, "\nNo TSX files found in the selected directory (excluding node_modules).\n")
+            if not code_files:
+                self.status_text.insert(tk.END, "\nNo TS or JS files found in the selected directory (excluding node_modules, dist, .git).\n")
                 return
+            
+            # Sort files by path for better organization
+            code_files.sort(key=lambda x: x[0])
             
             # Write to output file
             with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(f"TSX Files Index\n{'='*50}\n")
+                f.write(f"NestJS Codebase Export\n{'='*80}\n")
                 f.write(f"Source Directory: {source_folder}\n")
                 f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"Total TSX Files Found: {len(tsx_files)}\n\n")
+                f.write(f"Total Files Found: {len(code_files)}\n\n")
                 
-                for relative_path, full_path in tsx_files:
-                    f.write(f"\nFile: {relative_path}\n{'-'*50}\n")
+                for relative_path, full_path in code_files:
+                    f.write(f"\n\n{'='*80}\n")
+                    f.write(f"File: {relative_path}\n")
+                    f.write(f"{'='*80}\n\n")
                     try:
-                        with open(full_path, 'r', encoding='utf-8') as tsx_file:
-                            content = tsx_file.read()
-                            f.write(f"Content:\n{content}\n")
+                        with open(full_path, 'r', encoding='utf-8') as code_file:
+                            content = code_file.read()
+                            f.write(f"{content}\n")
                     except Exception as e:
                         f.write(f"Error reading file: {str(e)}\n")
             
             self.status_text.insert(tk.END, f"\nDone! Output file created at:\n{output_path}\n")
-            self.status_text.insert(tk.END, f"Total TSX files processed: {len(tsx_files)}\n")
-            messagebox.showinfo("Success", f"Scan completed successfully!\nFound {len(tsx_files)} TSX files.")
+            self.status_text.insert(tk.END, f"Total files processed: {len(code_files)}\n")
+            messagebox.showinfo("Success", f"Scan completed successfully!\nFound {len(code_files)} TS/JS files.")
             
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            self.status_text.insert(tk.END, f"ERROR: {str(e)}\n")
 
 def main():
     root = tk.Tk()
-    app = TSXScanner(root)
+    app = CodeScanner(root)
     root.mainloop()
 
 if __name__ == "__main__":
